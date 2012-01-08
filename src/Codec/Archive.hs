@@ -16,6 +16,7 @@ module Codec.Archive (
 import Control.Exception
 import Data.ByteString.Lazy ( ByteString )
 import qualified Data.ByteString.Lazy as LBS
+import Data.Char ( toLower )
 import Data.List ( find, isSuffixOf )
 import Data.Map ( Map )
 import qualified Data.Map as M
@@ -55,7 +56,7 @@ readArchive p = do
   return $! decodeArchive fmt c
 
 classifyArchive :: FilePath -> ArchiveFormat
-classifyArchive p = case splitExtension p of
+classifyArchive p = case splitExtension (map toLower p) of
   (_, ".zip") -> Zip
   (_, ".tbz2") -> TarBz2
   (_, ".tgz") -> TarGz
