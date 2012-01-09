@@ -66,7 +66,7 @@ classifyArchive p = case splitExtension (map toLower p) of
       _ -> throw $ UnrecognizedFormatError p
   (rest, ".gz") ->
     case takeExtension rest of
-      ".tar." -> TarGz
+      ".tar" -> TarGz
       _ -> throw $ UnrecognizedFormatError p
   _ -> throw $ UnrecognizedFormatError p
 
