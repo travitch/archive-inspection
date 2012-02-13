@@ -42,7 +42,7 @@ data ArchiveIndex = TarArchive !(Map FilePath Tar.Entry)
 
 -- | The errors that the library can report
 data ArchiveException = UnrecognizedFormatError String -- ^ The format of the archive could not be determined (or is unsupported)
-                      | TarDecodeError String -- ^ An error occured while decoding a tar archive
+                      | TarDecodeError Tar.FormatError -- ^ An error occured while decoding a tar archive
                       | TarEntryIsNotFile String -- ^ The named tar archive entry is not a normal file
                       deriving (Show, Typeable)
 instance Exception ArchiveException
