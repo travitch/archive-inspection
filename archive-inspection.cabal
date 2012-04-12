@@ -4,15 +4,15 @@
 name:                archive-inspection
 version:             0.1.0.0
 synopsis:            A library for inspecting the contents of compressed archives
--- description:
 license:             BSD3
 license-file:        LICENSE
 author:              Tristan Ravitch
 maintainer:          travitch@cs.wisc.edu
--- copyright:
 category:            Codec
 build-type:          Simple
 cabal-version:       >=1.10
+description: This library provides a uniform interface for inspecting
+             the contents of zip files and (possibly compressed) tarballs.
 
 library
   default-language: Haskell2010

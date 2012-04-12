@@ -1,4 +1,20 @@
 {-# LANGUAGE DeriveDataTypeable #-}
+-- | This module defines a uniform interface for interacting with
+-- compressed archives (zip files and tarballs).  The interface is
+-- small:
+--
+--  1) Read an archive using either the 'readArchive' helper (which
+--     reads a file off of disk) or 'decodeArchive' (which works on
+--     ByteStrings).
+--
+--  2) List files in the archive using 'archiveEntries'
+--
+--  3) Extract files using 'entryContent', which returns a ByteString
+--
+-- Example:
+--
+-- > archive <- readArchive "/tmp/gsl-1.15.tar.gz"
+-- > let Just configScript = entryContent archive "configure"
 module Codec.Archive (
   -- * Types
   ArchiveIndex,
@@ -70,6 +86,7 @@ classifyArchive p = case splitExtension (map toLower p) of
       _ -> throw $ UnrecognizedFormatError p
   _ -> throw $ UnrecognizedFormatError p
 
+-- | Read an archive from a ByteString, with a given archive format.
 decodeArchive :: ArchiveFormat -> ByteString -> ArchiveIndex
 decodeArchive Zip content = ZipArchive zarch
   where
@@ -82,10 +99,13 @@ decodeArchive Tar content = TarArchive entryMap
     entryMap = Tar.foldEntries fillMap M.empty (throw . TarDecodeError) es
     fillMap e m = M.insert (Tar.entryPath e) e m
 
+-- | Retrieve the list of all files in the archive
 archiveEntries :: ArchiveIndex -> [FilePath]
 archiveEntries (TarArchive ix) = M.keys ix
 archiveEntries (ZipArchive zarch) = Zip.filesInArchive zarch
 
+-- | Retrieve the contents of the named file from the archive.  If the
+-- requested file is not in the archive, this function returns Nothing
 entryContent :: ArchiveIndex -> FilePath -> Maybe ByteString
 entryContent (TarArchive ix) p = do
   e <- M.lookup p ix
