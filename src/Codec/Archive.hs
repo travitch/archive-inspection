@@ -22,13 +22,13 @@ module Codec.Archive (
   ArchiveException(..),
   -- * Constructors
   readArchive,
-  decodeArchive,
   -- * Accessors
   archiveEntries,
   entryContent,
   entryContentSuffix
   ) where
 
+import Blaze.ByteString.Builder
 import Control.Exception
 import Data.ByteString.Lazy ( ByteString )
 import qualified Data.ByteString.Lazy as LBS
@@ -36,21 +36,24 @@ import Data.Char ( toLower )
 import Data.List ( find, isSuffixOf )
 import Data.Map ( Map )
 import qualified Data.Map as M
+import Data.Monoid
 import Data.Typeable ( Typeable )
 import System.FilePath
 
+import Data.Conduit
+import Data.Conduit.Binary
+import Data.Conduit.List ( fold )
+import qualified Data.Conduit.Zlib as GZip -- ungzip
+import qualified Data.Conduit.BZlib as BZip -- bunzip2
+import qualified Data.Conduit.Lzma as XZip -- decompress Nothing
 import qualified Codec.Archive.Tar as Tar
 import qualified Codec.Archive.Zip as Zip
-import qualified Codec.Compression.BZip as BZip
-import qualified Codec.Compression.GZip as GZip
 
 data ArchiveFormat = Tar
                    | Zip
                    | TarGz
                    | TarBz2
-                     -- Implement this eventually, maybe using
-                     -- lzma-enumerator.  Make optional?
-                     -- | TarXz
+                   | TarXz
 
 -- | The abstract handle representing a compressed archive
 data ArchiveIndex = TarArchive !(Map FilePath Tar.Entry)
@@ -68,8 +71,21 @@ instance Exception ArchiveException
 readArchive :: FilePath -> IO ArchiveIndex
 readArchive p = do
   let fmt = classifyArchive p
-  c <- LBS.readFile p
+  c <- decompressIfNeeded fmt p
   return $! decodeArchive fmt c
+
+decompressIfNeeded :: ArchiveFormat -> FilePath -> IO ByteString
+decompressIfNeeded fmt fp =
+  case fmt of
+    TarGz -> doDecompress GZip.ungzip fp
+    TarBz2 -> doDecompress BZip.bunzip2 fp
+    TarXz -> doDecompress (XZip.decompress Nothing) fp
+    _ -> LBS.readFile fp
+  where
+    doDecompress fltr p =
+      let src = sourceFile p
+          sink = fold (\b bs -> b `mappend` fromByteString bs) mempty
+      in runResourceT (src $= fltr $$ sink) >>= (return . toLazyByteString)
 
 classifyArchive :: FilePath -> ArchiveFormat
 classifyArchive p = case splitExtension (map toLower p) of
@@ -84,6 +100,10 @@ classifyArchive p = case splitExtension (map toLower p) of
     case takeExtension rest of
       ".tar" -> TarGz
       _ -> throw $ UnrecognizedFormatError p
+  (rest, ".xz") ->
+    case takeExtension rest of
+      ".tar" -> TarXz
+      _ -> throw $ UnrecognizedFormatError p
   _ -> throw $ UnrecognizedFormatError p
 
 -- | Read an archive from a ByteString, with a given archive format.
@@ -91,9 +111,8 @@ decodeArchive :: ArchiveFormat -> ByteString -> ArchiveIndex
 decodeArchive Zip content = ZipArchive zarch
   where
     zarch = Zip.toArchive content
-decodeArchive TarGz content = decodeArchive Tar (GZip.decompress content)
-decodeArchive TarBz2 content = decodeArchive Tar (BZip.decompress content)
-decodeArchive Tar content = TarArchive entryMap
+-- otherwise it is a decompressed tar
+decodeArchive _ content = TarArchive entryMap
   where
     es = Tar.read content
     entryMap = Tar.foldEntries fillMap M.empty (throw . TarDecodeError) es

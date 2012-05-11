@@ -21,6 +21,6 @@ library
   ghc-options: -Wall
   ghc-prof-options: -auto-all
   build-depends: base > 3 && < 5, bytestring, filepath, containers,
-                 bzlib, zlib,
-                 tar >= 0.3, zip-archive >= 0.1
+                 conduit, lzma-conduit, bzlib-conduit, zlib-conduit,
+                 blaze-builder, tar >= 0.3, zip-archive >= 0.1
   exposed-modules: Codec.Archive
