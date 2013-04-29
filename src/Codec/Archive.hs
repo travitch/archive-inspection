@@ -28,7 +28,6 @@ module Codec.Archive (
   entryContentSuffix
   ) where
 
-import Blaze.ByteString.Builder
 import Control.Exception
 import Data.ByteString.Lazy ( ByteString )
 import qualified Data.ByteString.Lazy as LBS
@@ -36,16 +35,10 @@ import Data.Char ( toLower )
 import Data.List ( find, isSuffixOf )
 import Data.Map ( Map )
 import qualified Data.Map as M
-import Data.Monoid
 import Data.Typeable ( Typeable )
 import System.FilePath
+import qualified System.Process as Proc
 
-import Data.Conduit
-import Data.Conduit.Binary
-import Data.Conduit.List ( fold )
-import qualified Data.Conduit.Zlib as GZip -- ungzip
-import qualified Data.Conduit.BZlib as BZip -- bunzip2
-import qualified Data.Conduit.Lzma as XZip -- decompress Nothing
 import qualified Codec.Archive.Tar as Tar
 import qualified Codec.Archive.Zip as Zip
 
@@ -77,15 +70,16 @@ readArchive p = do
 decompressIfNeeded :: ArchiveFormat -> FilePath -> IO ByteString
 decompressIfNeeded fmt fp =
   case fmt of
-    TarGz -> doDecompress GZip.ungzip fp
-    TarBz2 -> doDecompress BZip.bunzip2 fp
-    TarXz -> doDecompress (XZip.decompress Nothing) fp
+    TarGz -> doDecompress "gunzip" fp
+    TarBz2 -> doDecompress "bunzip2" fp
+    TarXz -> doDecompress "unxz" fp
     _ -> LBS.readFile fp
   where
-    doDecompress fltr p =
-      let src = sourceFile p
-          sink = fold (\b bs -> b `mappend` fromByteString bs) mempty
-      in runResourceT (src $= fltr $$ sink) >>= (return . toLazyByteString)
+    doDecompress fltr p = do
+      let p0 = Proc.proc fltr ["-c", p]
+          p1 = p0 { Proc.std_out = Proc.CreatePipe }
+      (_, Just hOut, _, _) <- Proc.createProcess p1
+      LBS.hGetContents hOut
 
 classifyArchive :: FilePath -> ArchiveFormat
 classifyArchive p = case splitExtension (map toLower p) of
